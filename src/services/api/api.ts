@@ -22,7 +22,7 @@ export type Result<T> = {
 };
 
 export const api = axios.create({
-  baseURL: "https://192.168.1.5:5001",
+  baseURL: import.meta.env.VITE_API_URL || "/api",
   withCredentials: true,
 });
 

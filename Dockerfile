@@ -1,18 +1,18 @@
-# Build
-FROM node:23-alpine AS builder
+# Build stage
+FROM node:22-slim AS builder
 WORKDIR /app
-COPY package*.json ./
-RUN npm ci
+COPY package*.json pnpm-lock.yaml* ./
+RUN npm install -g pnpm && pnpm install
 COPY . .
-RUN npm run build
+# VITE_API_URL для fetch('/api') → proxy в nginx
+ARG VITE_API_URL=/api
+ENV VITE_API_URL=$VITE_API_URL
+RUN pnpm run build
 
-# Run
-FROM nginx:alpine
-RUN adduser -D -H -u 1001 -s /sbin/nologin webuser
-RUN mkdir -p /app/www
-COPY --from=builder /app/dist /app/www
-COPY nginx.conf /etc/nginx/nginx.conf
-RUN chown -R webuser:webuser /app/www /var/cache/nginx /var/log/nginx && chmod -R 755 /app/www
+# Production nginx
+FROM nginx:1.25-alpine
+COPY --from=builder /app/dist /usr/share/nginx/html
+# Nginx config для SPA routing и proxy API
+COPY nginx.conf /etc/nginx/conf.d/default.conf
 EXPOSE 80
-USER webuser
 CMD ["nginx", "-g", "daemon off;"]

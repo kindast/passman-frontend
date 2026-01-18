@@ -6,12 +6,13 @@ import TextArea from "../components/ui/TextArea";
 import TextButton from "../components/ui/TextButton";
 import TextField from "../components/ui/TextField";
 import Checkbox from "../components/ui/Checkbox";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import {
   passwordService,
   type Password,
 } from "../services/api/passwordService";
 import Range from "../components/ui/Range";
+import Select, { type SelectValue } from "../components/ui/Select";
 
 type FormErrors = {
   ServiceName: string[];
@@ -38,14 +39,28 @@ function PasswordModal({
   onSave,
 }: PasswordModalProps) {
   const [buttonDisabled, setButtonDisabled] = useState<boolean>(true);
+  const categories: SelectValue[] = useMemo(
+    () => [
+      { id: "personal", label: "Личное" },
+      { id: "work", label: "Работа" },
+      { id: "finance", label: "Финансы" },
+      { id: "social", label: "Соцсети" },
+      { id: "other", label: "Другое" },
+    ],
+    [],
+  );
 
   //Text Fields
   const [serviceName, setServiceName] = useState<string>("");
   const [url, setUrl] = useState<string>("");
   const [login, setLogin] = useState<string>("");
   const [password, setPassword] = useState<string>("");
-  const [category, setCategory] = useState<string>("");
+  const [category, setCategory] = useState<SelectValue>({
+    id: "personal",
+    label: "Личное",
+  });
   const [notes, setNotes] = useState<string>("");
+  const [imageUrl, setImageUrl] = useState<string>("");
 
   //Password Generator settings
   const [showPassGen, setShowPassGen] = useState<boolean>(false);
@@ -79,13 +94,19 @@ function PasswordModal({
         setUrl(initialPassword.url || "");
         setLogin(initialPassword.login);
         setPassword(initialPassword.password);
-        setCategory(initialPassword.category || "");
         setNotes(initialPassword.notes || "");
+        setImageUrl(initialPassword.imageUrl || "");
+        setCategory(
+          categories.find((c) => c.id === initialPassword.category) || {
+            id: "personal",
+            label: "Личное",
+          },
+        );
       }
     };
 
     setInitialPassword();
-  }, [initialPassword]);
+  }, [categories, initialPassword]);
 
   return (
     <div
@@ -209,19 +230,20 @@ function PasswordModal({
               />
             </div>
           )}
+          <Select
+            label="Категория *"
+            values={categories}
+            selectedValue={category}
+            onChange={(v) => setCategory(v)}
+          />
           <TextField
-            id="category"
-            label="Категория"
-            value={category}
-            onChange={(e) => {
-              setCategory(e.target.value);
-            }}
-            placeholder="Личное"
+            id="imageUrl"
+            label="Ссылка на изображение"
+            value={imageUrl}
+            onChange={(e) => setImageUrl(e.target.value)}
+            placeholder="https://example.com/my-image.jpg"
             type="text"
-            maxLength={50}
-            errors={
-              errors && !Array.isArray(errors) ? errors.Category : undefined
-            }
+            maxLength={500}
           />
           <TextArea
             id="note"
@@ -246,7 +268,8 @@ function PasswordModal({
                 serviceName,
                 login,
                 password,
-                ...(category && { category }),
+                imageUrl,
+                category: category.id,
                 ...(notes && { notes }),
                 ...(url && { url }),
               };
