@@ -1,43 +1,37 @@
-version: "3.8"
 services:
-  passman-api:
-    image: kindast/passman.backend:latest
-    ports:
-      - "8081:8080"
+  db:
+    image: postgres:16-alpine
     environment:
-      ConnectionStrings__DefaultConnection: "Server=passman-db,1433;Initial Catalog=PassMan;Persist Security Info=True;User ID=sa;Password=<DBPassword>;MultipleActiveResultSets=true;Encrypt=true;TrustServerCertificate=true;"
-      AllowedCorsOrigins: "http://localhost:80,file://"
-      JwtSettings__Secret: "<YourVerySecretKey_min_32_length>"
-      ASPNETCORE_ENVIRONMENT: Development
-    depends_on:
-      - passman-db
-    networks:
-      - passman-net
-
-  passman-db:
-    image: mcr.microsoft.com/mssql/server:2022-latest
+      POSTGRES_DB: passman
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: VeryStrongPassword
     ports:
-      - "1433:1433"
-    environment:
-      ACCEPT_EULA: "Y"
-      MSSQL_SA_PASSWORD: "<DBPassword>"
-      MSSQL_PID: "Express"
+      - "5432:5432"
     volumes:
-      - db-data:/var/opt/mssql
-    networks:
-      - passman-net
+      - pgdata:/var/lib/postgresql/data
 
-  passman-web:
+  backend:
+    image: kindast/passman.backend:latest
+    environment:
+      ConnectionStrings__DefaultConnection: Host=db;Port=5432;Database=passman;Username=postgres;Password=VeryStrongPassword
+      AllowedCorsOrigins: "http://localhost:80"
+      JwtSettings__SecretKey: "YourVeryVeryVeryVeryVeryVerySecretJWTKey" #Минимум 32 символа
+      ASPNETCORE_ENVIRONMENT: Production
+    depends_on:
+      - db
+    ports:
+      - "8080:8080"
+    volumes:
+      - type: bind
+        source: "./uploads" #Директория с изображениями пользователей
+        target: /app/wwwroot/uploads
+
+  frontend:
     image: kindast/passman.frontend:latest
+    depends_on:
+      - backend
     ports:
       - "80:80"
-    depends_on:
-      - passman-api
-    networks:
-      - passman-net
 
 volumes:
-  db-data:
-
-networks:
-  passman-net:
+  pgdata:

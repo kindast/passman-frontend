@@ -6,7 +6,7 @@ interface ButtonProps {
   className?: string;
   color?: string;
   disabled?: boolean;
-  onClick: (event: React.MouseEvent<HTMLButtonElement, MouseEvent>) => void;
+  onClick?: (event: React.MouseEvent<HTMLButtonElement, MouseEvent>) => void;
 }
 
 function Button({

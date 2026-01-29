@@ -4,6 +4,8 @@ Web‑клиент для менеджера паролей **PassMan**.
 
 Фронтенд предоставляет удобный интерфейс для регистрации, авторизации и управления сохранёнными учётными данными, работая поверх REST API бекенда [PassMan](https://github.com/kindast/PassMan.Backend).
 
+![Главное окно](./public/screenshots/main.png)
+
 ## Стек
 
 - React + TypeScript (Vite)

@@ -8,8 +8,9 @@ interface PasswordFieldProps {
   icon?: boolean;
   minLength?: number;
   maxLength?: number;
-  errors?: string[];
+  errors?: string[] | string;
   onChange: (event: React.ChangeEvent<HTMLInputElement>) => void;
+  onBlur?: () => void;
 }
 
 function PasswordField({
@@ -21,6 +22,7 @@ function PasswordField({
   maxLength,
   errors,
   onChange,
+  onBlur,
 }: PasswordFieldProps) {
   const [showPassword, setShowPassword] = useState<boolean>(false);
 
@@ -40,6 +42,7 @@ function PasswordField({
           type={showPassword ? "text" : "password"}
           value={value}
           onChange={onChange}
+          onBlur={onBlur}
           id={id}
           minLength={minLength}
           maxLength={maxLength}
@@ -67,9 +70,13 @@ function PasswordField({
       </div>
       {errors && (
         <div className=" rounded-xl py-2 text-xs text-red-600">
-          {errors.map((value, index) => {
-            return <p key={index}>{value}</p>;
-          })}
+          {Array.isArray(errors) ? (
+            errors.map((value, index) => {
+              return <p key={index}>{value}</p>;
+            })
+          ) : (
+            <p>{errors}</p>
+          )}
         </div>
       )}
     </div>

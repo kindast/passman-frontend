@@ -30,7 +30,7 @@ function Select({ label, values, selectedValue, onChange }: SelectProps) {
         className="cursor-pointer relative"
       >
         <TextField
-          id="sort"
+          id="category"
           readonly
           value={selectedValue.label}
           className="text-gray-600 dark:text-gray-300 select-none"

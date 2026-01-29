@@ -7,11 +7,11 @@ import {
   EyeOff,
   X,
 } from "lucide-react";
-import { type Password } from "../../../services/api/passwordService";
 import { useState } from "react";
+import type { PasswordDto } from "../../../api/dto/password/password.dto";
 
 interface TableRowProps {
-  password: Password;
+  password: PasswordDto;
   onDelete: () => void;
   onEdit: () => void;
 }
@@ -19,7 +19,7 @@ interface TableRowProps {
 function TableRow({ password, onDelete, onEdit }: TableRowProps) {
   const [copiedLogin, setCopiedLogin] = useState<string>(password.login);
   const [copiedPassword, setCopiedPassword] = useState<string>(
-    password.password
+    password.password,
   );
   const [showPassword, setShowPassword] = useState<boolean>(false);
 
@@ -54,8 +54,8 @@ function TableRow({ password, onDelete, onEdit }: TableRowProps) {
           {showPassword
             ? copiedPassword
             : copiedPassword === "Скопировано!"
-            ? copiedPassword
-            : "•".repeat(password.password.length)}
+              ? copiedPassword
+              : "•".repeat(password.password.length)}
           <div className="">
             <button
               className="cursor-pointer p-2 hover:bg-gray-200 dark:hover:bg-gray-700 rounded-lg"

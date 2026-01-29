@@ -1,6 +1,6 @@
 import useAuthStore from "../store/authStore";
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { authService } from "../services/api/authService";
+import { authService } from "../api/services/authService";
 import {
   ChevronDown,
   Lock,
@@ -20,18 +20,20 @@ import Button from "../components/ui/Button";
 import TextField from "../components/ui/TextField";
 import AccentButton from "../components/ui/AccentButton";
 import TableRow from "../components/ui/password/TableRow";
-import {
-  passwordService,
-  type GetPasswordsResponse,
-  type Password,
-} from "../services/api/passwordService";
 import Loading from "../components/ui/Loading";
-import type { RequestState } from "../services/api/api";
 import PasswordModal from "./PasswordModal";
 import ProfilePage from "../components/pages/ProfilePage";
 import DeleteModal from "../components/ui/DeleteModal";
 import Card from "../components/ui/password/Card";
 import type { SelectValue } from "../components/ui/Select";
+import { passwordService } from "../api/services/passwordService";
+import type { GetPasswordParamsDto } from "../api/dto/password/get-password-params.dto";
+import type { PasswordSort } from "../api/dto/password/types/passwordSort";
+import type { PasswordDto } from "../api/dto/password/password.dto";
+import type { GetPasswordDto } from "../api/dto/password/get-password.dto";
+import type { RequestState } from "../api/dto/request-state.dto";
+import type { CreatePasswordDto } from "../api/dto/password/create-password.dto";
+import type { UpdatePasswordDto } from "../api/dto/password/update-password.dto";
 
 function DashboardScreen() {
   const categories: SelectValue[] = useMemo(
@@ -45,11 +47,12 @@ function DashboardScreen() {
     ],
     [],
   );
-  const { userEmail } = useAuthStore();
   const [category, setCategory] = useState<SelectValue>({
     id: "all",
     label: "Все пароли",
   });
+  const { userEmail } = useAuthStore();
+
   const [showSettings, setShowSettings] = useState<boolean>(false);
   const [showSideBar, setShowSideBar] = useState<boolean>();
   const [showModal, setShowModal] = useState<boolean>(false);
@@ -57,68 +60,71 @@ function DashboardScreen() {
   const [showPasswordModal, setShowPasswordModal] = useState<boolean>(false);
   const [showDeletePasswordModal, setShowDeletePasswordModal] =
     useState<boolean>(false);
-  const [errors, setErrors] = useState<string[]>();
   const [viewMode, setViewMode] = useState<"grid" | "table">("grid");
 
   const [search, setSearch] = useState<string>("");
-  const [passwords, setPasswords] = useState<
-    RequestState<GetPasswordsResponse>
-  >({ status: "loading" });
-  const [passwordForEdit, setPasswordForEdit] = useState<Password>();
-  const [passwordForDelete, setPasswordForDelete] = useState<Password>();
+  const [passwords, setPasswords] = useState<RequestState<GetPasswordDto>>({
+    state: "loading",
+  });
+  const [passwordForEdit, setPasswordForEdit] = useState<PasswordDto>();
+  const [passwordForDelete, setPasswordForDelete] = useState<PasswordDto>();
 
   const [page, setPage] = useState<number>(1);
-  const [sortUp, setSortUp] = useState<boolean>(true);
-  const [sort, setSort] = useState<string>("name");
+  const [sortDirection, setSortDirection] = useState<"Asc" | "Desc">("Asc");
+  const [sort, setSort] = useState<PasswordSort>("name");
 
   const fetchPasswords = useCallback(async () => {
-    setPasswords({ status: "loading" });
-    const params = {
+    setPasswords({ state: "loading" });
+    let sortType = sort;
+    if (sortDirection === "Desc") {
+      if (sort === "name") sortType = "nameDesc";
+      if (sort === "updated") sortType = "updatedDesc";
+    }
+
+    const params: GetPasswordParamsDto = {
       page,
       pageSize: 10,
       ...(search && { search }),
-      sort: !sortUp ? sort + "Desc" : sort,
+      sort: sortType,
       category: category.id,
     };
     const result = await passwordService.getPasswords(params);
     setPasswords(result);
-  }, [page, search, sort, sortUp, category]);
+  }, [page, search, sort, category, sortDirection]);
 
   const deletePassword = useCallback(
     async (id: string) => {
       const result = await passwordService.deletePassword(id);
-      if (result.status === "success") fetchPasswords();
+      if (result.state === "success") fetchPasswords();
     },
     [fetchPasswords],
   );
 
   const addPassword = useCallback(
-    async (password: Password) => {
+    async (password: CreatePasswordDto) => {
       const result = await passwordService.addPassword(password);
-      if (result.status === "success") {
+      if (result.state === "success") {
         fetchPasswords();
         setShowPasswordModal(false);
       }
-      if (result.status === "error") setErrors(result.errors);
     },
     [fetchPasswords],
   );
 
   const editPassword = useCallback(
-    async (password: Password) => {
-      const result = await passwordService.updatePassword(password);
-      if (result.status === "success") {
+    async (id: string, password: UpdatePasswordDto) => {
+      const result = await passwordService.updatePassword(id, password);
+      if (result.state === "success") {
         fetchPasswords();
         setShowPasswordModal(false);
         setPasswordForEdit(undefined);
       }
-      if (result.status === "error") setErrors(result.errors);
     },
     [fetchPasswords],
   );
 
   const getPages = useCallback(() => {
-    if (passwords.status !== "success") return [];
+    if (passwords.state !== "success") return [];
     const totalPages = passwords.data.totalPages;
 
     if (!totalPages || totalPages <= 0) return [];
@@ -188,13 +194,11 @@ function DashboardScreen() {
             setShowPasswordModal(false);
             setPasswordForEdit(undefined);
           }}
-          onSave={(password: Password) => {
+          onSave={(password: PasswordDto) => {
             if (!passwordForEdit) addPassword(password);
-            if (passwordForEdit) editPassword(password);
-            setErrors(undefined);
+            if (passwordForEdit) editPassword(password.id ?? "", password);
           }}
           initialPassword={passwordForEdit || undefined}
-          errors={errors}
         />
       ) : (
         ""
@@ -313,7 +317,8 @@ function DashboardScreen() {
         </div>
         {!showSettings ? (
           <>
-            {passwords.status === "success" && passwords.statusCode === 204 ? (
+            {passwords.state === "success" &&
+            passwords.data.passwords.length === 0 ? (
               <div className="flex flex-col justify-center items-center flex-1 p-6 bg-gray-50 dark:bg-gray-900">
                 <div className="bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 w-1/3 p-6">
                   <p className="text-gray-900 dark:text-white text-xl font-medium">
@@ -332,7 +337,7 @@ function DashboardScreen() {
                 </div>
               </div>
             ) : (
-              <div className="flex flex-col flex-1 dark:bg-gray-800 ">
+              <div className="flex flex-col flex-1 dark:bg-gray-800 transition-all">
                 <div className="border-b border-gray-200 dark:border-gray-700  px-6 py-4 flex items-center gap-2">
                   <TextField
                     id="search"
@@ -347,9 +352,11 @@ function DashboardScreen() {
                   <div className="flex gap-2">
                     <div
                       className="border border-gray-200 dark:bg-gray-700 dark:border-gray-600 rounded-lg cursor-pointer p-3 text-gray-600 dark:text-gray-300"
-                      onClick={() => setSortUp(!sortUp)}
+                      onClick={() => {
+                        setSortDirection((p) => (p === "Asc" ? "Desc" : "Asc"));
+                      }}
                     >
-                      {sortUp ? (
+                      {sortDirection === "Asc" ? (
                         <ArrowUp className="w-4 h-4" />
                       ) : (
                         <ArrowDown className="w-4 h-4" />
@@ -428,25 +435,24 @@ function DashboardScreen() {
                     />
                   </div>
                 </div>
-                {passwords.status === "loading" && (
+                {passwords.state === "loading" && (
                   <Loading title="Загрузка паролей..." />
                 )}
-                {passwords.status === "error" &&
-                  passwords.statusCode === 400 && (
-                    <div className="flex flex-col flex-1">
-                      <div className="p-6 bg-gray-50 dark:bg-gray-900 flex-1">
-                        <div className="w-full h-full flex flex-col justify-center items-center gap-4">
-                          <SearchAlert className="w-20 h-20 text-gray-600 dark:text-gray-300" />
-                          <p className="text-xl text-gray-600 dark:text-gray-300">
-                            {search !== ""
-                              ? `Данные по запросу "${search}" не найдены!`
-                              : "В данной категории нет паролей"}
-                          </p>
-                        </div>
+                {passwords.state === "error" && passwords.code === 400 && (
+                  <div className="flex flex-col flex-1">
+                    <div className="p-6 bg-gray-50 dark:bg-gray-900 flex-1">
+                      <div className="w-full h-full flex flex-col justify-center items-center gap-4">
+                        <SearchAlert className="w-20 h-20 text-gray-600 dark:text-gray-300" />
+                        <p className="text-xl text-gray-600 dark:text-gray-300">
+                          {search !== ""
+                            ? `Данные по запросу "${search}" не найдены!`
+                            : "В данной категории нет паролей"}
+                        </p>
                       </div>
                     </div>
-                  )}
-                {passwords.status === "success" && (
+                  </div>
+                )}
+                {passwords.state === "success" && (
                   <>
                     <div className="p-6 bg-gray-50 dark:bg-gray-900 flex-1">
                       {viewMode === "table" ? (
@@ -478,7 +484,7 @@ function DashboardScreen() {
                               </tr>
                             </thead>
                             <tbody className="border-t border-gray-200 dark:border-gray-700">
-                              {passwords.data.data.map((password) => {
+                              {passwords.data.passwords.map((password) => {
                                 return (
                                   <TableRow
                                     key={password.id}
@@ -509,7 +515,7 @@ function DashboardScreen() {
                         </div>
                       ) : (
                         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                          {passwords.data.data.map((password) => {
+                          {passwords.data.passwords.map((password) => {
                             return (
                               <Card
                                 key={password.id}
@@ -533,7 +539,7 @@ function DashboardScreen() {
                     {getPages().length > 0 && (
                       <div className="border-t border-gray-200 dark:border-gray-700 px-6 py-4 flex items-center justify-between">
                         <p className="text-gray-600 dark:text-gray-300  text-sm">
-                          Показано {passwords.data.data.length} из{" "}
+                          Показано {passwords.data.passwords.length} из{" "}
                           {passwords.data.totalCount}
                         </p>
                         <div className="flex gap-2">

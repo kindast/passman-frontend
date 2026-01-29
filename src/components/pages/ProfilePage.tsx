@@ -1,10 +1,4 @@
 import { useCallback, useEffect, useState } from "react";
-import type { RequestState } from "../../services/api/api";
-import {
-  userService,
-  type ChangePasswordRequest,
-  type Profile,
-} from "../../services/api/userService";
 import TextField from "../ui/TextField";
 import AccentButton from "../ui/AccentButton";
 import Button from "../ui/Button";
@@ -12,6 +6,10 @@ import Loading from "../ui/Loading";
 import DeleteModal from "../ui/DeleteModal";
 import useAuthStore from "../../store/authStore";
 import ChangePasswordModal from "../ui/ChangePasswordModal";
+import type { RequestState } from "../../api/dto/request-state.dto";
+import type { ProfileDto } from "../../api/dto/user/profile.dto";
+import { userService } from "../../api/services/userService";
+import type { ChangePasswordDto } from "../../api/dto/user/change-password.dto";
 
 function ProfilePage() {
   const [showConfirmDeleteModal, setShowConfirmDeleteModal] =
@@ -20,39 +18,41 @@ function ProfilePage() {
     useState<boolean>(false);
   const [passwordConfirm, setPasswordConfirm] = useState<string>("");
   const [errors, setErrors] = useState<string[]>();
-  const [profile, setProfile] = useState<RequestState<Profile>>({
-    status: "loading",
+  const [profile, setProfile] = useState<RequestState<ProfileDto>>({
+    state: "loading",
   });
 
   const deleteAccount = useCallback(async () => {
-    const result = await userService.deleteAccount(passwordConfirm);
-    if (result.status === "success") useAuthStore.getState().clearAuth();
-    if (result.status === "error") setErrors(result.errors);
+    const result = await userService.deleteAccount({
+      password: passwordConfirm,
+    });
+    if (result.state === "success") useAuthStore.getState().clearAuth();
+    if (result.state === "error") setErrors(result.errors);
   }, [passwordConfirm]);
 
   const changePassword = useCallback(
     async (currentPassword: string, newPassword: string) => {
-      const data: ChangePasswordRequest = {
+      const data: ChangePasswordDto = {
         currentPassword,
         newPassword,
       };
       const result = await userService.changePassword(data);
-      if (result.status === "success") setShowChangePasswordModal(false);
-      if (result.status === "error") setErrors(result.errors);
+      if (result.state === "success") setShowChangePasswordModal(false);
+      if (result.state === "error") setErrors(result.errors);
     },
-    []
+    [],
   );
 
   useEffect(() => {
     const fetchProfile = async () => {
-      const result = await userService.profile();
-      if (result.status === "success") setProfile(result);
+      const result = await userService.getProfile();
+      if (result.state === "success") setProfile(result);
     };
 
     fetchProfile();
   }, []);
 
-  if (profile.status === "loading")
+  if (profile.state === "loading")
     return <Loading title="Загрузка профиля..." />;
 
   return (
@@ -65,14 +65,14 @@ function ProfilePage() {
           <p className="font-medium text-gray-900 dark:text-white text-xl">
             Основная информация
           </p>
-          {profile.status === "success" && (
+          {profile.state === "success" && (
             <>
               <div className="flex items-end gap-4">
                 <TextField
                   id="email"
                   label="Email"
                   value={
-                    profile.status === "success"
+                    profile.state === "success"
                       ? profile.data.email
                       : "Загрузка..."
                   }
@@ -95,9 +95,9 @@ function ProfilePage() {
                 value={
                   profile
                     ? new Date(
-                        profile.status === "success"
+                        profile.state === "success"
                           ? profile.data.createdAt
-                          : ""
+                          : "",
                       ).toLocaleDateString()
                     : "Загрузка..."
                 }
@@ -116,7 +116,7 @@ function ProfilePage() {
                 Последнее изменение:{" "}
                 {profile
                   ? new Date(
-                      profile.status === "success" ? profile.data.createdAt : ""
+                      profile.state === "success" ? profile.data.createdAt : "",
                     ).toLocaleDateString()
                   : "Загрузка..."}
               </p>

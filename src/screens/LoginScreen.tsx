@@ -2,32 +2,72 @@ import Button from "../components/ui/Button";
 import PasswordField from "../components/ui/PasswordField";
 import Checkbox from "../components/ui/Checkbox";
 import TextButton from "../components/ui/TextButton";
-import { useCallback, useEffect, useState } from "react";
-import { authService, type AuthRequest } from "../services/api/authService";
+import { useCallback, useEffect, useMemo, useState } from "react";
+import { authService } from "../api/services/authService";
 import { useNavigate } from "react-router";
 import { Lock, Mail } from "lucide-react";
 import useAuthStore from "../store/authStore";
 import TextField from "../components/ui/TextField";
+import type { SignInDto } from "../api/dto/auth";
 
-type FormErrors = { Email: string[]; MasterPassword: string[] };
+type SignInValues = {
+  email: string;
+  password: string;
+};
 
-function LoginScreen() {
-  const [email, setEmail] = useState<string>("");
-  const [masterPassword, setMasterPassword] = useState<string>("");
+type SignUpErrors = Partial<Record<keyof SignInValues, string>>;
+
+const passwordRegex = /^(?=.*[A-Z])(?=.*[a-z])(?=.*\d)(?=.*[^\w\s]).{8,100}$/;
+
+function validate(values: SignInValues): SignUpErrors {
+  const errors: SignUpErrors = {};
+
+  const email = values.email.trim();
+  if (!email) errors.email = "Email обязателен";
+  else if (email.length > 100) errors.email = "Email: максимум 100 символов";
+  else {
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(email)) errors.email = "Неверный формат email";
+  }
+
+  const password = values.password;
+  if (!password) errors.password = "Пароль обязателен";
+  else if (password.length < 8) errors.password = "Пароль минимум 8 символов";
+  else if (password.length > 100)
+    errors.password = "Пароль: максимум 100 символов";
+  else if (!passwordRegex.test(password)) {
+    errors.password =
+      "Пароль должен содержать: заглавную букву, строчную букву, цифру, специальный символ";
+  }
+
+  return errors;
+}
+
+function SignInScreen() {
+  const [values, setValues] = useState<SignInValues>({
+    email: "",
+    password: "",
+  });
+  const [touched, setTouched] = useState<{
+    email: boolean;
+    password: boolean;
+  }>({
+    email: false,
+    password: false,
+  });
+  const errors = useMemo(() => validate(values), [values]);
   const [rememberMe, setRemeberMe] = useState<boolean>(true);
-  const [errors, setErrors] = useState<string[] | FormErrors>();
   const { isAuthenticated } = useAuthStore();
   const navigate = useNavigate();
 
-  const login = useCallback(async () => {
-    const data: AuthRequest = {
-      email,
-      masterPassword,
+  const signIn = useCallback(async () => {
+    const data: SignInDto = {
+      email: values.email,
+      password: values.password,
     };
     localStorage.setItem("rememberMe", JSON.stringify(rememberMe));
-    const result = await authService.login(data);
-    if (result.status === "error") setErrors(result.errors);
-  }, [email, masterPassword, rememberMe]);
+    await authService.signIn(data);
+  }, [values, rememberMe]);
 
   useEffect(() => {
     if (isAuthenticated) {
@@ -53,24 +93,24 @@ function LoginScreen() {
             <TextField
               id="email"
               label="Email"
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
+              value={values.email}
+              onChange={(e) =>
+                setValues((v) => ({ ...v, email: e.target.value }))
+              }
+              onBlur={() => setTouched((t) => ({ ...t, email: true }))}
               placeholder="example@email.com"
               icon={<Mail />}
-              errors={
-                errors && !Array.isArray(errors) ? errors.Email : undefined
-              }
+              errors={touched.email ? (errors.email ?? "") : ""}
             />
             <PasswordField
               id="password"
               label="Пароль"
-              value={masterPassword}
-              onChange={(e) => setMasterPassword(e.target.value)}
-              errors={
-                errors && !Array.isArray(errors)
-                  ? errors.MasterPassword
-                  : undefined
+              value={values.password}
+              onChange={(e) =>
+                setValues((v) => ({ ...v, password: e.target.value }))
               }
+              onBlur={() => setTouched((t) => ({ ...t, password: true }))}
+              errors={touched.password ? (errors.password ?? "") : ""}
             />
             <Checkbox
               label="Запомнить меня"
@@ -81,8 +121,12 @@ function LoginScreen() {
             />
             <Button
               title="Войти"
+              disabled={
+                Object.keys(errors).length !== 0 &&
+                (touched.password || touched.email)
+              }
               onClick={() => {
-                login();
+                signIn();
               }}
             />
             {errors && Array.isArray(errors) && (
@@ -108,4 +152,4 @@ function LoginScreen() {
   );
 }
 
-export default LoginScreen;
+export default SignInScreen;

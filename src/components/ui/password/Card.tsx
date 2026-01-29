@@ -1,9 +1,9 @@
 import { useState } from "react";
-import type { Password } from "../../../services/api/passwordService";
 import { Copy, ExternalLink, Eye, EyeOff, Pencil, Trash2 } from "lucide-react";
+import type { PasswordDto } from "../../../api/dto/password/password.dto";
 
 interface CardProps {
-  password: Password;
+  password: PasswordDto;
   onDelete: () => void;
   onEdit: () => void;
 }
@@ -22,15 +22,15 @@ function Card({ password, onDelete, onEdit }: CardProps) {
     >
       {/* Изображение */}
       <div className="relative h-40 overflow-hidden rounded-t-lg">
-        {password.imageUrl && (
+        {password.cover && (
           <img
-            src={password.imageUrl}
+            src={import.meta.env.VITE_API_URL + "/uploads/" + password.cover}
             alt={password.serviceName}
             className="w-full h-full object-cover"
           />
         )}
         <div
-          className={`absolute inset-0 ${password.imageUrl && "bg-linear-to-t from-black/60 to-transparent"}`}
+          className={`absolute inset-0 bg-linear-to-t from-black/60 to-transparent`}
         />
         <a
           href={password.url}

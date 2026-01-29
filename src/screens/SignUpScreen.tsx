@@ -4,26 +4,74 @@ import TextButton from "../components/ui/TextButton";
 import useAuthStore from "../store/authStore";
 import { Mail, Shield } from "lucide-react";
 import { useNavigate } from "react-router";
-import { useState, useEffect, useCallback } from "react";
-import { authService, type AuthRequest } from "../services/api/authService";
+import { useState, useEffect, useCallback, useMemo } from "react";
+import { authService } from "../api/services/authService";
 import TextField from "../components/ui/TextField";
+import type { SignUpDto } from "../api/dto/auth";
 
-type FormErrors = { Email: string[]; MasterPassword: string[] };
+type SignUpValues = {
+  email: string;
+  password: string;
+  confirmPassword: string;
+};
 
-function RegisterScreen() {
-  const [email, setEmail] = useState<string>("");
-  const [masterPassword, setMasterPassword] = useState<string>("");
-  const [confirmPassword, setConfirmPassword] = useState<string>("");
-  const [errors, setErrors] = useState<string[] | FormErrors>();
+type SignUpErrors = Partial<Record<keyof SignUpValues, string>>;
+
+const passwordRegex = /^(?=.*[A-Z])(?=.*[a-z])(?=.*\d)(?=.*[^\w\s]).{8,100}$/;
+
+function validate(values: SignUpValues): SignUpErrors {
+  const errors: SignUpErrors = {};
+
+  const email = values.email.trim();
+  if (!email) errors.email = "Email обязателен";
+  else if (email.length > 100) errors.email = "Email: максимум 100 символов";
+  else {
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(email)) errors.email = "Неверный формат email";
+  }
+
+  const password = values.password;
+  if (!password) errors.password = "Пароль обязателен";
+  else if (password.length < 8) errors.password = "Пароль минимум 8 символов";
+  else if (password.length > 100)
+    errors.password = "Пароль: максимум 100 символов";
+  else if (!passwordRegex.test(password)) {
+    errors.password =
+      "Пароль должен содержать: заглавную букву, строчную букву, цифру, специальный символ";
+  }
+
+  const confirmPassword = values.confirmPassword;
+  if (!confirmPassword)
+    errors.confirmPassword = "Подтверждение пароля обязательно";
+  else if (confirmPassword !== password)
+    errors.confirmPassword = "Пароли не совпадают";
+
+  return errors;
+}
+
+function SignUpScreen() {
+  const [values, setValues] = useState<SignUpValues>({
+    email: "",
+    password: "",
+    confirmPassword: "",
+  });
+  const [touched, setTouched] = useState<{
+    email: boolean;
+    password: boolean;
+    confirmPassword: boolean;
+  }>({
+    email: false,
+    password: false,
+    confirmPassword: false,
+  });
   const { isAuthenticated } = useAuthStore();
   const navigate = useNavigate();
+  const errors = useMemo(() => validate(values), [values]);
 
-  const register = useCallback(async () => {
-    const data: AuthRequest = { email, masterPassword };
-    const result = await authService.register(data);
-
-    if (result.status === "error") setErrors(result.errors);
-  }, [email, masterPassword]);
+  const signUp = useCallback(async () => {
+    const data: SignUpDto = { email: values.email, password: values.password };
+    await authService.signUp(data);
+  }, [values]);
 
   useEffect(() => {
     if (isAuthenticated) {
@@ -50,34 +98,37 @@ function RegisterScreen() {
             <TextField
               id="email"
               label="Email"
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
+              value={values.email}
+              onChange={(e) =>
+                setValues((v) => ({ ...v, email: e.target.value }))
+              }
+              onBlur={() => setTouched((t) => ({ ...t, email: true }))}
               placeholder="example@email.com"
               icon={<Mail />}
-              errors={
-                errors && !Array.isArray(errors) ? errors.Email : undefined
-              }
+              errors={touched.email ? (errors.email ?? "") : ""}
             />
             <PasswordField
               id="password"
               label="Пароль"
-              value={masterPassword}
-              onChange={(e) => setMasterPassword(e.target.value)}
-              errors={
-                errors && !Array.isArray(errors)
-                  ? errors.MasterPassword
-                  : undefined
+              value={values.password}
+              onChange={(e) =>
+                setValues((v) => ({ ...v, password: e.target.value }))
               }
+              onBlur={() => setTouched((t) => ({ ...t, password: true }))}
+              errors={touched.password ? (errors.password ?? "") : ""}
             />
             <PasswordField
               id="confirmPassword"
               label="Подтверждение пароля"
-              value={confirmPassword}
-              onChange={(e) => setConfirmPassword(e.target.value)}
+              value={values.confirmPassword}
+              onChange={(e) =>
+                setValues((v) => ({ ...v, confirmPassword: e.target.value }))
+              }
+              onBlur={() =>
+                setTouched((t) => ({ ...t, confirmPassword: true }))
+              }
               errors={
-                masterPassword !== confirmPassword
-                  ? ["Пароли не совпадают"]
-                  : undefined
+                touched.confirmPassword ? (errors.confirmPassword ?? "") : ""
               }
             />
             <div className="p-3 bg-blue-50 dark:bg-gray-900 border border-blue-200 dark:border-blue-800 rounded-lg">
@@ -109,9 +160,13 @@ function RegisterScreen() {
             </div>
             <Button
               title="Создать аккаунт"
+              disabled={
+                Object.keys(errors).length !== 0 &&
+                (touched.confirmPassword || touched.password || touched.email)
+              }
               onClick={() => {
-                if (masterPassword !== confirmPassword) return;
-                register();
+                if (Object.keys(errors).length !== 0) return;
+                signUp();
               }}
             />
             <div className="text-center pt-4">
@@ -132,4 +187,4 @@ function RegisterScreen() {
   );
 }
 
-export default RegisterScreen;
+export default SignUpScreen;

@@ -5,8 +5,9 @@ interface TextAreaProps {
   placeholder?: string;
   minLength?: number;
   maxLength?: number;
-  errors?: string[];
+  errors?: string[] | string;
   onChange: (event: React.ChangeEvent<HTMLTextAreaElement>) => void;
+  onBlur?: () => void;
 }
 
 function TextArea({
@@ -18,6 +19,7 @@ function TextArea({
   maxLength,
   errors,
   onChange,
+  onBlur,
 }: TextAreaProps) {
   return (
     <div>
@@ -35,6 +37,7 @@ function TextArea({
           id={id}
           value={value}
           onChange={onChange}
+          onBlur={onBlur}
           placeholder={placeholder}
           minLength={minLength}
           maxLength={maxLength}
@@ -42,9 +45,13 @@ function TextArea({
       </div>
       {errors && (
         <div className=" rounded-xl py-2 text-xs text-red-600">
-          {errors.map((value, index) => {
-            return <p key={index}>{value}</p>;
-          })}
+          {Array.isArray(errors) ? (
+            errors.map((value, index) => {
+              return <p key={index}>{value}</p>;
+            })
+          ) : (
+            <p>{errors}</p>
+          )}
         </div>
       )}
     </div>

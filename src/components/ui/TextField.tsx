@@ -9,10 +9,11 @@ interface TextFieldProps {
   icon?: React.ReactElement<{ className?: string }>;
   className?: string;
   readonly?: boolean;
-  errors?: string[];
+  errors?: string[] | string;
   minLength?: number;
   maxLength?: number;
   onChange?: (event: React.ChangeEvent<HTMLInputElement>) => void;
+  onBlur?: () => void;
 }
 
 function TextField({
@@ -28,6 +29,7 @@ function TextField({
   minLength,
   maxLength,
   onChange,
+  onBlur,
 }: TextFieldProps) {
   return (
     <div className={className}>
@@ -51,6 +53,7 @@ function TextField({
           id={id}
           value={value}
           onChange={onChange}
+          onBlur={onBlur}
           minLength={minLength}
           maxLength={maxLength}
           className={`w-full ${
@@ -67,9 +70,13 @@ function TextField({
       </div>
       {errors && (
         <div className=" rounded-xl py-2 text-xs text-red-600">
-          {errors.map((value, index) => {
-            return <p key={index}>{value}</p>;
-          })}
+          {Array.isArray(errors) ? (
+            errors.map((value, index) => {
+              return <p key={index}>{value}</p>;
+            })
+          ) : (
+            <p>{errors}</p>
+          )}
         </div>
       )}
     </div>

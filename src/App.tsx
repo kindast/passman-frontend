@@ -1,10 +1,10 @@
 import { Route, Routes, useLocation, useNavigate } from "react-router";
 import DashboardScreen from "./screens/DashboardScreen";
-import LoginScreen from "./screens/LoginScreen";
-import RegisterScreen from "./screens/RegisterScreen";
+import SignInScreen from "./screens/LoginScreen";
+import SignUpScreen from "./screens/SignUpScreen";
 import { useEffect } from "react";
 import useAuthStore from "./store/authStore";
-import { authService } from "./services/api/authService";
+import { authService } from "./api/services/authService";
 import Loading from "./components/ui/Loading";
 
 export default function App() {
@@ -16,7 +16,7 @@ export default function App() {
     const authorize = async () => {
       const result = await authService.refresh();
 
-      if (result.status === "error") {
+      if (result.state === "error") {
         navigate("/login");
       }
     };
@@ -38,8 +38,8 @@ export default function App() {
           }
         />
 
-        <Route path="/login" element={<LoginScreen />} />
-        <Route path="/register" element={<RegisterScreen />} />
+        <Route path="/login" element={<SignInScreen />} />
+        <Route path="/register" element={<SignUpScreen />} />
       </Routes>
     </>
   );

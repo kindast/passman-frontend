@@ -7,38 +7,74 @@ import TextButton from "../components/ui/TextButton";
 import TextField from "../components/ui/TextField";
 import Checkbox from "../components/ui/Checkbox";
 import { useCallback, useEffect, useMemo, useState } from "react";
-import {
-  passwordService,
-  type Password,
-} from "../services/api/passwordService";
 import Range from "../components/ui/Range";
 import Select, { type SelectValue } from "../components/ui/Select";
+import type { PasswordDto } from "../api/dto/password/password.dto";
+import { passwordService } from "../api/services/passwordService";
+import FileInput from "../components/ui/FileInput";
+import { coverService } from "../api/services/coverService";
 
-type FormErrors = {
-  ServiceName: string[];
-  Url: string[];
-  Login: string[];
-  Password: string[];
-  Category: string[];
-  Notes: string[];
+type CreatePasswordValues = {
+  serviceName: string;
+  url: string;
+  login: string;
+  password: string;
+  category: SelectValue;
+  notes: string;
 };
+
+type Errors = Partial<Record<keyof CreatePasswordValues, string>>;
+const serviceNameRegex = /^[a-zA-Z0-9\s\-.]+$/;
+
+function validate(v: CreatePasswordValues): Errors {
+  const e: Errors = {};
+
+  // ServiceName
+  const serviceName = v.serviceName.trim();
+  if (!serviceName) e.serviceName = "Название сервиса обязательно";
+  else if (serviceName.length < 2)
+    e.serviceName = "Название: минимум 2 символа";
+  else if (serviceName.length > 100)
+    e.serviceName = "Название: максимум 100 символов";
+  else if (!serviceNameRegex.test(serviceName))
+    e.serviceName = "Только буквы, цифры, пробелы, дефис, точка";
+
+  // Url (не required)
+  const url = v.url.trim();
+  if (url.length > 500) e.url = "URL: максимум 500 символов";
+
+  // Login
+  const login = v.login.trim();
+  if (!login) e.login = "Логин обязателен";
+  else if (login.length < 2) e.login = "Логин: минимум 2 символа";
+  else if (login.length > 100) e.login = "Логин: максимум 100 символов";
+
+  // Password
+  const password = v.password;
+  if (!password) e.password = "Пароль обязателен";
+  else if (password.length < 4) e.password = "Пароль: минимум 4 символа";
+  else if (password.length > 500) e.password = "Пароль: максимум 500 символов";
+
+  // Notes (не required)
+  const notes = v.notes;
+  if (notes.length > 1000) e.notes = "Заметки: максимум 1000 символов";
+
+  return e;
+}
 
 interface PasswordModalProps {
   title: string;
-  initialPassword?: Password;
-  errors?: string[] | FormErrors;
+  initialPassword?: PasswordDto;
   onClose: () => void;
-  onSave: (password: Password) => void;
+  onSave: (password: PasswordDto) => void;
 }
 
 function PasswordModal({
   title,
-  errors,
   initialPassword,
   onClose,
   onSave,
 }: PasswordModalProps) {
-  const [buttonDisabled, setButtonDisabled] = useState<boolean>(true);
   const categories: SelectValue[] = useMemo(
     () => [
       { id: "personal", label: "Личное" },
@@ -49,18 +85,29 @@ function PasswordModal({
     ],
     [],
   );
-
-  //Text Fields
-  const [serviceName, setServiceName] = useState<string>("");
-  const [url, setUrl] = useState<string>("");
-  const [login, setLogin] = useState<string>("");
-  const [password, setPassword] = useState<string>("");
-  const [category, setCategory] = useState<SelectValue>({
-    id: "personal",
-    label: "Личное",
+  const [values, setValues] = useState<CreatePasswordValues>({
+    serviceName: "",
+    url: "",
+    login: "",
+    password: "",
+    category: { id: "personal", label: "Личное" },
+    notes: "",
   });
-  const [notes, setNotes] = useState<string>("");
-  const [imageUrl, setImageUrl] = useState<string>("");
+
+  const [touched, setTouched] = useState<
+    Record<keyof CreatePasswordValues, boolean>
+  >({
+    serviceName: false,
+    url: false,
+    login: false,
+    password: false,
+    category: false,
+    notes: false,
+  });
+
+  const errors = useMemo(() => validate(values), [values]);
+
+  const [cover, setCover] = useState<File | null>();
 
   //Password Generator settings
   const [showPassGen, setShowPassGen] = useState<boolean>(false);
@@ -76,32 +123,59 @@ function PasswordModal({
       useNumbers,
       useSpecialChars,
     });
-    if (result.status === "success") setPassword(result.data);
+    if (result.state === "success")
+      setValues((p) => {
+        return { ...p, password: result.data.message };
+      });
   }, [length, useUppercase, useNumbers, useSpecialChars]);
 
-  useEffect(() => {
-    const textFieldsCheck = async () => {
-      if (serviceName && login && password) setButtonDisabled(false);
-    };
-
-    textFieldsCheck();
-  }, [serviceName, login, password]);
+  const uploadCover = useCallback(async () => {
+    if (!cover) return;
+    const data: FormData = new FormData();
+    data.append("file", cover);
+    const result = await coverService.uploadCover(data);
+    if (result.state === "success") {
+      const id = result.data.id;
+      const data: PasswordDto = {
+        ...(initialPassword && { id: initialPassword.id }),
+        serviceName: values.serviceName,
+        login: values.login,
+        password: values.password,
+        category: values.category.id,
+        ...(values.notes && { notes: values.notes }),
+        ...(values.url && { url: values.url }),
+        ...(id && { cover: id }),
+      };
+      onSave(data);
+    }
+  }, [
+    cover,
+    initialPassword,
+    values.serviceName,
+    values.login,
+    values.password,
+    values.category.id,
+    values.notes,
+    values.url,
+    onSave,
+  ]);
 
   useEffect(() => {
     const setInitialPassword = async () => {
       if (initialPassword) {
-        setServiceName(initialPassword.serviceName);
-        setUrl(initialPassword.url || "");
-        setLogin(initialPassword.login);
-        setPassword(initialPassword.password);
-        setNotes(initialPassword.notes || "");
-        setImageUrl(initialPassword.imageUrl || "");
-        setCategory(
-          categories.find((c) => c.id === initialPassword.category) || {
+        setValues({
+          serviceName: initialPassword.serviceName,
+          url: initialPassword.url || "",
+          login: initialPassword.login,
+          password: initialPassword.password,
+          notes: initialPassword.notes || "",
+          category: categories.find(
+            (c) => c.label === initialPassword.category,
+          ) || {
             id: "personal",
             label: "Личное",
           },
-        );
+        });
       }
     };
 
@@ -126,57 +200,55 @@ function PasswordModal({
           <TextField
             id="service"
             label="Название сервиса *"
-            value={serviceName}
-            onChange={(e) => {
-              setServiceName(e.target.value);
-            }}
+            value={values.serviceName}
+            onChange={(e) =>
+              setValues((v) => ({ ...v, serviceName: e.target.value }))
+            }
+            onBlur={() => setTouched((t) => ({ ...t, serviceName: true }))}
             placeholder="Например: Google"
             minLength={2}
             maxLength={100}
-            errors={
-              errors && !Array.isArray(errors) ? errors.ServiceName : undefined
-            }
+            errors={touched.serviceName ? (errors.serviceName ?? "") : ""}
           />
           <TextField
             id="url"
             label="URL"
-            value={url}
-            onChange={(e) => {
-              setUrl(e.target.value);
-            }}
+            value={values.url}
+            onChange={(e) => setValues((v) => ({ ...v, url: e.target.value }))}
+            onBlur={() => setTouched((t) => ({ ...t, url: true }))}
             placeholder="https://example.com"
             type="url"
             minLength={2}
             maxLength={500}
-            errors={errors && !Array.isArray(errors) ? errors.Url : undefined}
+            errors={touched.url ? (errors.url ?? "") : ""}
           />
           <TextField
             id="login"
             label="Логин/Email *"
-            value={login}
-            onChange={(e) => {
-              setLogin(e.target.value);
-            }}
+            value={values.login}
+            onChange={(e) =>
+              setValues((v) => ({ ...v, login: e.target.value }))
+            }
+            onBlur={() => setTouched((t) => ({ ...t, login: true }))}
             placeholder="user@example.com"
             type="text"
             minLength={2}
             maxLength={100}
-            errors={errors && !Array.isArray(errors) ? errors.Login : undefined}
+            errors={touched.login ? (errors.login ?? "") : ""}
           />
           <div className="relative">
             <PasswordField
               id="password"
               label="Пароль *"
               icon={false}
-              value={password}
-              onChange={(e) => {
-                setPassword(e.target.value);
-              }}
+              value={values.password}
+              onChange={(e) =>
+                setValues((v) => ({ ...v, password: e.target.value }))
+              }
+              onBlur={() => setTouched((t) => ({ ...t, password: true }))}
               minLength={4}
               maxLength={500}
-              errors={
-                errors && !Array.isArray(errors) ? errors.Password : undefined
-              }
+              errors={touched.password ? (errors.password ?? "") : ""}
             />
             <TextButton
               label="Генератор паролей"
@@ -233,45 +305,46 @@ function PasswordModal({
           <Select
             label="Категория *"
             values={categories}
-            selectedValue={category}
-            onChange={(v) => setCategory(v)}
+            selectedValue={values.category}
+            onChange={(c) => setValues((v) => ({ ...v, category: c }))}
           />
-          <TextField
-            id="imageUrl"
-            label="Ссылка на изображение"
-            value={imageUrl}
-            onChange={(e) => setImageUrl(e.target.value)}
-            placeholder="https://example.com/my-image.jpg"
-            type="text"
-            maxLength={500}
+          <FileInput
+            label="Изображение"
+            preview={true}
+            value={cover}
+            onChange={(f) => setCover(f)}
           />
           <TextArea
             id="note"
             label="Примечание"
-            value={notes}
-            onChange={(e) => {
-              setNotes(e.target.value);
-            }}
+            value={values.notes}
+            onChange={(e) =>
+              setValues((v) => ({ ...v, notes: e.target.value }))
+            }
+            onBlur={() => setTouched((t) => ({ ...t, notes: true }))}
             placeholder="Дополнительная информация..."
             maxLength={1000}
-            errors={errors && !Array.isArray(errors) ? errors.Notes : undefined}
+            errors={touched.notes ? (errors.notes ?? "") : ""}
           />
         </div>
         <div className="px-6 py-4 flex justify-end gap-2">
           <AccentButton title="Отмена" onClick={onClose} className="w-30" />
           <Button
             title="Сохранить"
-            disabled={buttonDisabled}
+            disabled={Object.keys(errors).length !== 0}
             onClick={() => {
-              const data: Password = {
+              if (cover) {
+                uploadCover();
+                return;
+              }
+              const data: PasswordDto = {
                 ...(initialPassword && { id: initialPassword.id }),
-                serviceName,
-                login,
-                password,
-                imageUrl,
-                category: category.id,
-                ...(notes && { notes }),
-                ...(url && { url }),
+                serviceName: values.serviceName,
+                login: values.login,
+                password: values.password,
+                category: values.category.id,
+                ...(values.notes && { notes: values.notes }),
+                ...(values.url && { url: values.url }),
               };
               onSave(data);
             }}
